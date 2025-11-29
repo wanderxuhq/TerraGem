@@ -1,0 +1,5 @@
+{
+  "name": "TerraGen: AI Sandbox",
+  "description": "A top-down 2D sandbox survival game featuring procedural generation and an AI-powered 'Oracle' that narrates the world and provides hints based on your surroundings.",
+  "requestFramePermissions": []
+}
