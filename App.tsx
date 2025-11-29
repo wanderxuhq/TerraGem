@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Component, ErrorInfo } from 'react';
 import { generateChunk } from './utils/worldGen';
 import { 
     COLLISION_TILES, PLACEABLE_TILES, STRINGS 
@@ -15,7 +15,7 @@ import { VariantEditor } from './components/VariantEditor';
 import { TextureManager } from './components/TextureManager';
 import { generateLore } from './services/geminiService';
 import { generateDefaultTextures } from './utils/textureGen';
-import { BrainCircuit, Info, Save, Palette } from 'lucide-react';
+import { BrainCircuit, Info, Save, Palette, AlertTriangle } from 'lucide-react';
 
 // Systems Imports
 import { getTile, modifyTile } from './utils/gameUtils';
@@ -26,8 +26,50 @@ import { renderScene } from './systems/renderer';
 import { loadGame, saveGame } from './services/storage';
 import { placeBlueprint, createBlueprint } from './systems/blueprints';
 
+// Error Boundary Component
+class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("App Error Boundary caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-white p-4 text-center">
+           <AlertTriangle size={48} className="text-red-500 mb-4" />
+           <h1 className="text-xl font-bold mb-2">Something went wrong.</h1>
+           <p className="text-slate-400 mb-4 text-sm max-w-md">The game crashed. This usually happens due to corrupt save data or a temporary glitch.</p>
+           <div className="bg-black/30 p-2 rounded text-xs font-mono text-red-300 mb-4 max-w-lg overflow-auto">
+               {this.state.error?.message}
+           </div>
+           <button 
+             onClick={() => {
+                 localStorage.clear(); 
+                 window.location.reload();
+             }}
+             className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded font-bold"
+           >
+             Clear Save & Reload
+           </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Get Language
 const getLang = () => {
+  if (typeof navigator === 'undefined') return 'en';
   const navLang = navigator.language.toLowerCase();
   return navLang.startsWith('zh') ? 'zh' : 'en';
 };
@@ -36,7 +78,7 @@ const LANG = getLang();
 const t = (key: string) => STRINGS[key]?.[LANG] || key;
 const SEED = Math.floor(Math.random() * 10000);
 
-export default function App() {
+function Game() {
   const gameStateRef = useRef<GameState>({
       chunks: {},
       player: { x: 8, y: 8, selectedItem: null, direction: 'down' },
@@ -740,5 +782,13 @@ export default function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <Game />
+    </ErrorBoundary>
   );
 }

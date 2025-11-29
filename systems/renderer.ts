@@ -1,8 +1,7 @@
 
 import { BLUEPRINT_IGNORED_TILES, TILE_COLORS, TILE_SIZE, DIRS } from '../constants';
 import { Blueprint, Camera, CHUNK_SIZE, Chunk, GameState, TileType } from '../types';
-import { getTile, isRail, isGate } from '../utils/gameUtils';
-import { isPowerSourceFor } from './world';
+import { getTile, isRail, isGate, isPowerSourceFor } from '../utils/gameUtils';
 
 export const renderChunkToCache = (chunk: Chunk, allChunks: Record<string, Chunk>, textureCache: Partial<Record<TileType, HTMLImageElement>>) => {
       const cvs = document.createElement('canvas');
@@ -70,13 +69,6 @@ export const renderChunkToCache = (chunk: Chunk, allChunks: Record<string, Chunk
                   ctx.fillRect(drawX + 20, drawY, 2, 10);
               }
               else if (tile.type === TileType.TREE) {
-                  // Trees are drawn on top of the base tile (or base texture)
-                  // If custom texture exists, we assume it's the "ground" or the "tree" itself?
-                  // Usually user wants to re-texture the Tree object. 
-                  // If customImg exists, we ALREADY drew it above. 
-                  // But TREE usually has transparency or shape. 
-                  // If we drew a custom square texture for TREE, it fills the box. 
-                  // We skip default drawing if custom exists.
                   if (!hasCustomTexture) {
                       ctx.fillStyle = 'rgba(0,0,0,0.2)';
                       ctx.beginPath();
@@ -118,8 +110,6 @@ export const renderChunkToCache = (chunk: Chunk, allChunks: Record<string, Chunk
                   ctx.fill();
               }
               else if (tile.type === TileType.RAIL) {
-                   // For Rails, even if we have a custom background texture, we probably want the rails on top?
-                   // If custom texture is set for RAIL, assume it replaces the rail art.
                    if (!hasCustomTexture) {
                        const globalX = chunk.x * CHUNK_SIZE + x;
                        const globalY = chunk.y * CHUNK_SIZE + y;
@@ -186,9 +176,6 @@ export const renderChunkToCache = (chunk: Chunk, allChunks: Record<string, Chunk
                    }
               }
               else if (tile.type === TileType.WIRE) {
-                  // Wires always draw connection logic on top, even if custom bg exists (handled by previous if logic falling through to here)
-                  // But wait, if customImg exists, we drew it.
-                  // Now we draw the wire overlay.
                   ctx.fillStyle = tile.active ? '#ef4444' : '#7f1d1d';
                   ctx.fillRect(drawX + TILE_SIZE/2 - 3, drawY + TILE_SIZE/2 - 3, 6, 6);
                   const globalX = chunk.x * CHUNK_SIZE + x;
@@ -205,8 +192,6 @@ export const renderChunkToCache = (chunk: Chunk, allChunks: Record<string, Chunk
                   });
               }
               else if (tile.type === TileType.LEVER) {
-                  // Lever base is drawn if no custom img. If custom img, we skip base and draw handle?
-                  // Logic: If custom img, that's the base. We draw handle on top.
                   if (!hasCustomTexture) {
                       ctx.fillStyle = '#4b5563';
                       ctx.fillRect(drawX + 10, drawY + 10, TILE_SIZE-20, TILE_SIZE-20);
@@ -222,7 +207,7 @@ export const renderChunkToCache = (chunk: Chunk, allChunks: Record<string, Chunk
                    if (tile.type === TileType.LAMP_ON) {
                        ctx.shadowColor = '#fef08a';
                        ctx.shadowBlur = 10;
-                       ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'; // Overlay for glow if custom texture
+                       ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
                        ctx.fillRect(drawX + 10, drawY + 10, TILE_SIZE-20, TILE_SIZE-20);
                        ctx.shadowBlur = 0;
                    }
@@ -445,7 +430,6 @@ export const renderScene = (
       }
 
       // Render Selection Box
-      // Use explicit selectionEnd if provided (when dialog is open), otherwise use current mouse position
       const endPos = selectionEnd || mouseWorldPos;
       
       if (selectionStart && endPos) {

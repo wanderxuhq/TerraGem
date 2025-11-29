@@ -1,7 +1,7 @@
 
 import { INTERACTABLE_TILES, LOOT_TABLE, DIRS } from '../constants';
 import { CHUNK_SIZE, TileType, GameState, Tile } from '../types';
-import { getTile, modifyTile, isGate, isConductive } from '../utils/gameUtils';
+import { getTile, modifyTile, isGate, isConductive, isPowerSourceFor } from '../utils/gameUtils';
 
 export const attemptMine = (state: GameState, x: number, y: number, onLoot?: () => void) => {
     const tile = getTile(state.chunks, x, y);
@@ -28,42 +28,6 @@ export const attemptMine = (state: GameState, x: number, y: number, onLoot?: () 
         updateCircuit(state, x, y+1);
         updateCircuit(state, x, y-1);
     }
-};
-
-// Check if a tile acts as a power source to its neighbors (Lever) or directed output (Gate)
-export const isPowerSourceFor = (source: Tile, targetX: number, targetY: number): boolean => {
-    if (!source.active) return false;
-    
-    if (source.type === TileType.LEVER) return true; // Levers power everything around them
-    
-    if (isGate(source)) {
-        // Determine relationship from source to target
-        const dx = targetX - source.x;
-        const dy = targetY - source.y;
-        
-        // Find which relative side of the gate this target is on
-        // 0:Front, 1:Right, 2:Back, 3:Left relative to facing (variant)
-        // We iterate through DIRS rotated by variant
-        let relativeSide = -1;
-        for(let i=0; i<4; i++) {
-            const absDirIndex = (source.variant + i) % 4;
-            const dir = DIRS[absDirIndex];
-            if (dir.dx === dx && dir.dy === dy) {
-                relativeSide = i;
-                break;
-            }
-        }
-        
-        if (relativeSide === -1) return false; // Not adjacent
-
-        // Check if Output Mask has this side enabled
-        // Output Mask is bits 4-7
-        const ioConfig = source.ioConfig !== undefined ? source.ioConfig : 30; // Default 30 (see below)
-        const outputMask = (ioConfig >> 4) & 0x0F;
-        
-        return ((outputMask >> relativeSide) & 1) === 1;
-    }
-    return false;
 };
 
 // Helper: Check if tile at (sx, sy) is providing an active HIGH signal to (tx, ty)
@@ -276,8 +240,6 @@ export const handleInteraction = (state: GameState, worldX: number, worldY: numb
     }
     
     // Configure Gates (Rotation)
-    // NOTE: Configuration UI is handled in App.tsx via return value or state
-    // Standard click rotates. Shift click opens UI (handled upstream).
     if (isGate(tile)) {
          if (!isShiftHeld) {
              // Rotate
@@ -287,7 +249,6 @@ export const handleInteraction = (state: GameState, worldX: number, worldY: numb
              evaluateGate(state, getTile(state.chunks, worldX, worldY)!, 0);
 
              // 2. Re-evaluate immediate surroundings as rotation changes connection points
-             // Neighbors will read the updated active state of this gate
              updateCircuit(state, worldX+1, worldY);
              updateCircuit(state, worldX-1, worldY);
              updateCircuit(state, worldX, worldY+1);
@@ -313,7 +274,6 @@ export const simulateNature = (state: GameState) => {
 
     if (tile.type === 'SAPLING' as TileType) {
         if (Math.random() < 0.1) {
-            // Keep placed status if sapling was placed
             modifyTile(state.chunks, worldX, worldY, t => ({...t, type: TileType.TREE}));
         }
     }
