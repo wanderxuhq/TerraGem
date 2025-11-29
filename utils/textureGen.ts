@@ -80,6 +80,12 @@ export const generateDefaultTextures = (): Partial<Record<TileType, string>> => 
                  ctx.fillStyle = '#fde047';
                  ctx.beginPath(); ctx.arc(x,y,2,0,Math.PI*2); ctx.fill();
              }
+        } else if (type === TileType.SAPLING) {
+             ctx.fillStyle = TILE_COLORS.GRASS;
+             ctx.fillRect(0,0,64,64);
+             ctx.fillStyle = '#166534';
+             ctx.fillRect(30, 40, 4, 14);
+             ctx.beginPath(); ctx.arc(32, 36, 8, 0, Math.PI*2); ctx.fill();
         }
         
         return canvas.toDataURL();
@@ -87,7 +93,7 @@ export const generateDefaultTextures = (): Partial<Record<TileType, string>> => 
 
     const types = [
         TileType.GRASS, TileType.WATER, TileType.SAND, TileType.STONE, 
-        TileType.WALL, TileType.FLOOR, TileType.WOOD, TileType.TREE, TileType.FLOWER
+        TileType.WALL, TileType.FLOOR, TileType.WOOD, TileType.TREE, TileType.FLOWER, TileType.SAPLING
     ];
 
     types.forEach(t => {

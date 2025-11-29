@@ -51,6 +51,7 @@ export const STRINGS: Record<string, { en: string; zh: string }> = {
   'generating': { en: 'Generating...', zh: '生成中...' },
   'reset': { en: 'Reset', zh: '重置' },
   'defaults': { en: 'Restore Defaults', zh: '恢复默认' },
+  'download_assets': { en: 'Download Default Assets', zh: '下载默认材质包' },
 
   // Editor Strings
   'configure_gate': { en: 'Configure Gate', zh: '配置逻辑门' },

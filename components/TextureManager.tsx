@@ -3,7 +3,9 @@ import React, { useState } from 'react';
 import { TileType } from '../types';
 import { TILE_COLORS } from '../constants';
 import { generateTexture } from '../services/geminiService';
-import { X, Sparkles, RefreshCw, Palette } from 'lucide-react';
+import { X, Sparkles, RefreshCw, Palette, Download } from 'lucide-react';
+import { generateProceduralTexture } from '../utils/proceduralGen';
+import { TEXTURE_PATHS } from '../assets/materials';
 
 interface TextureManagerProps {
     customTextures: Partial<Record<TileType, string>>;
@@ -22,7 +24,14 @@ const CUSTOMIZABLE_TILES: TileType[] = [
     TileType.FLOOR,
     TileType.WOOD,
     TileType.TREE,
-    TileType.FLOWER
+    TileType.FLOWER,
+    TileType.WIRE,
+    TileType.LEVER,
+    TileType.LAMP,
+    TileType.AND_GATE,
+    TileType.OR_GATE,
+    TileType.NOT_GATE,
+    TileType.RAIL
 ];
 
 export const TextureManager: React.FC<TextureManagerProps> = ({ customTextures, onUpdateTexture, onRestoreDefaults, onClose, t }) => {
@@ -41,6 +50,24 @@ export const TextureManager: React.FC<TextureManagerProps> = ({ customTextures, 
 
     const handleReset = () => {
         onUpdateTexture(selectedTile, null);
+    };
+
+    const handleDownloadDefaults = () => {
+        const types = Object.keys(TEXTURE_PATHS) as TileType[];
+        types.forEach(type => {
+            const base64 = generateProceduralTexture(type);
+            if (base64) {
+                const link = document.createElement('a');
+                link.href = base64;
+                // Extract filename from path e.g. /textures/grass.png -> grass.png
+                const path = TEXTURE_PATHS[type] || `${type.toLowerCase()}.png`;
+                const filename = path.split('/').pop() || `${type.toLowerCase()}.png`;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        });
     };
 
     return (
@@ -149,7 +176,7 @@ export const TextureManager: React.FC<TextureManagerProps> = ({ customTextures, 
                                 )}
                             </div>
 
-                            <div className="border-t border-slate-700 pt-3 mt-2">
+                            <div className="border-t border-slate-700 pt-3 mt-2 flex flex-col gap-2">
                                 <button 
                                     onClick={onRestoreDefaults}
                                     disabled={loading}
@@ -157,6 +184,16 @@ export const TextureManager: React.FC<TextureManagerProps> = ({ customTextures, 
                                 >
                                     <RefreshCw size={12} />
                                     {t('defaults')}
+                                </button>
+
+                                <button 
+                                    onClick={handleDownloadDefaults}
+                                    disabled={loading}
+                                    className="w-full py-2 rounded-lg font-bold text-xs text-cyan-500 hover:text-cyan-300 hover:bg-slate-800 flex items-center justify-center gap-2 transition-colors border border-dashed border-cyan-900/50 hover:border-cyan-700"
+                                    title="Generates original assets as PNGs for you to save in /textures/"
+                                >
+                                    <Download size={12} />
+                                    {t('download_assets')}
                                 </button>
                             </div>
                         </div>
