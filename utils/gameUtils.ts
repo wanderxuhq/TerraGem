@@ -39,3 +39,7 @@ export const modifyTile = (chunks: Record<string, Chunk>, x: number, y: number, 
 };
 
 export const isRail = (tile: Tile | null) => tile?.type === TileType.RAIL;
+
+export const isGate = (t: Tile | null) => t && (t.type === TileType.AND_GATE || t.type === TileType.OR_GATE || t.type === TileType.NOT_GATE);
+
+export const isConductive = (t: Tile | null) => t && (t.type === TileType.WIRE || t.type === TileType.LEVER || t.type === TileType.LAMP || t.type === TileType.LAMP_ON);

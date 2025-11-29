@@ -4,6 +4,14 @@ import { Blueprint, Recipe, TileType } from './types';
 export const TILE_SIZE = 48; // Increased for better detail
 export const MAX_MINECART_SPEED = 0.25;
 
+// Direction vectors matching variant: 0:Up, 1:Right, 2:Down, 3:Left
+export const DIRS = [
+    {dx: 0, dy: -1},
+    {dx: 1, dy: 0},
+    {dx: 0, dy: 1},
+    {dx: -1, dy: 0}
+];
+
 // Translation System
 export const STRINGS: Record<string, { en: string; zh: string }> = {
   'welcome': { en: 'Welcome to TerraGen', zh: '欢迎来到 TerraGen' },
@@ -36,6 +44,14 @@ export const STRINGS: Record<string, { en: string; zh: string }> = {
   'logic_clock': { en: 'Clock Circuit', zh: '时钟电路' },
   'garden_plot': { en: 'Garden Plot', zh: '花园地块' },
   
+  // Texture Manager
+  'texture_manager': { en: 'Material Editor', zh: '材质编辑器' },
+  'prompt_style': { en: 'Style Prompt', zh: '风格提示词' },
+  'generate': { en: 'Generate Texture', zh: '生成材质' },
+  'generating': { en: 'Generating...', zh: '生成中...' },
+  'reset': { en: 'Reset', zh: '重置' },
+  'defaults': { en: 'Restore Defaults', zh: '恢复默认' },
+
   // Editor Strings
   'configure_gate': { en: 'Configure Gate', zh: '配置逻辑门' },
   'save_to_backpack': { en: 'Save to Backpack', zh: '保存到背包' },

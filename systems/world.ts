@@ -1,7 +1,7 @@
 
-import { INTERACTABLE_TILES, LOOT_TABLE } from '../constants';
+import { INTERACTABLE_TILES, LOOT_TABLE, DIRS } from '../constants';
 import { CHUNK_SIZE, TileType, GameState, Tile } from '../types';
-import { getTile, modifyTile } from '../utils/gameUtils';
+import { getTile, modifyTile, isGate, isConductive } from '../utils/gameUtils';
 
 export const attemptMine = (state: GameState, x: number, y: number, onLoot?: () => void) => {
     const tile = getTile(state.chunks, x, y);
@@ -29,17 +29,6 @@ export const attemptMine = (state: GameState, x: number, y: number, onLoot?: () 
         updateCircuit(state, x, y-1);
     }
 };
-
-// Direction vectors matching variant: 0:Up, 1:Right, 2:Down, 3:Left
-export const DIRS = [
-    {dx: 0, dy: -1},
-    {dx: 1, dy: 0},
-    {dx: 0, dy: 1},
-    {dx: -1, dy: 0}
-];
-
-const isConductive = (t: Tile | null) => t && (t.type === TileType.WIRE || t.type === TileType.LEVER || t.type === TileType.LAMP || t.type === TileType.LAMP_ON);
-export const isGate = (t: Tile | null) => t && (t.type === TileType.AND_GATE || t.type === TileType.OR_GATE || t.type === TileType.NOT_GATE);
 
 // Check if a tile acts as a power source to its neighbors (Lever) or directed output (Gate)
 export const isPowerSourceFor = (source: Tile, targetX: number, targetY: number): boolean => {
@@ -95,7 +84,8 @@ const getSignal = (state: GameState, sx: number, sy: number, tx: number, ty: num
 };
 
 // Update a circuit network (contiguous wires/lamps) and trigger attached gates
-export const updateCircuit = (state: GameState, startX: number, startY: number, recursionDepth = 0) => {
+// Converted to function declaration to safely handle hoisting for mutual recursion with evaluateGate
+export function updateCircuit(state: GameState, startX: number, startY: number, recursionDepth = 0) {
     if (recursionDepth > 100) return; // Prevent infinite loops
 
     // 1. Identify the "Net" (connected conductive tiles) starting at x,y
@@ -215,9 +205,9 @@ export const updateCircuit = (state: GameState, startX: number, startY: number, 
             }
         }
     }
-};
+}
 
-const evaluateGate = (state: GameState, gate: Tile, depth: number) => {
+function evaluateGate(state: GameState, gate: Tile, depth: number) {
     // Default: 3 Inputs (L,B,R) -> 1110 = 14; 1 Output (F) -> 0001 << 4 = 16. Total 30.
     const ioConfig = gate.ioConfig !== undefined ? gate.ioConfig : 30;
 
@@ -271,7 +261,7 @@ const evaluateGate = (state: GameState, gate: Tile, depth: number) => {
             }
         }
     }
-};
+}
 
 export const handleInteraction = (state: GameState, worldX: number, worldY: number, onUpdate: () => void, isShiftHeld: boolean = false) => {
     const tile = getTile(state.chunks, worldX, worldY);

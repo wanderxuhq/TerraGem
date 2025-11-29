@@ -111,6 +111,7 @@ export interface GameState {
   entities: Entity[];
   customBlueprints: Blueprint[];
   customItems: CustomItem[]; // The "Backpack" of saved gates
+  customTextures: Partial<Record<TileType, string>>; // Base64 textures
 }
 
 export interface Camera {

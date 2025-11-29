@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Tile, TileType } from '../types';
 
@@ -68,5 +69,38 @@ export const identifyObject = async (tileType: TileType): Promise<string> => {
         return response.text || "A mysterious object.";
     } catch (error) {
         return "An object defying identification.";
+    }
+};
+
+export const generateTexture = async (tileType: string, style: string): Promise<string | null> => {
+    const ai = getAiClient();
+    if (!ai) return null;
+
+    const prompt = `
+        Generate a single seamless pixel art texture for a top-down 2D game.
+        Subject: ${tileType}.
+        Style: ${style || 'Standard detailed pixel art'}.
+        View: Top-down.
+        Resolution: 64x64.
+        Do not include any UI, borders, or text. Just the tile texture square.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: prompt,
+        });
+        
+        if (response.candidates?.[0]?.content?.parts) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData && part.inlineData.data) {
+                    return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                }
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error("Texture Gen Error", error);
+        return null;
     }
 }

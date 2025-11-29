@@ -12,8 +12,10 @@ import { BlueprintMenu } from './components/BlueprintMenu';
 import { BackpackMenu } from './components/BackpackMenu';
 import { BlueprintSaveDialog } from './components/BlueprintSaveDialog';
 import { VariantEditor } from './components/VariantEditor';
+import { TextureManager } from './components/TextureManager';
 import { generateLore } from './services/geminiService';
-import { BrainCircuit, Info, Save } from 'lucide-react';
+import { generateDefaultTextures } from './utils/textureGen';
+import { BrainCircuit, Info, Save, Palette } from 'lucide-react';
 
 // Systems Imports
 import { getTile, modifyTile } from './utils/gameUtils';
@@ -42,7 +44,8 @@ export default function App() {
       seed: SEED,
       entities: [],
       customBlueprints: [],
-      customItems: []
+      customItems: [],
+      customTextures: {}
   });
 
   const [uiTrigger, setUiTrigger] = useState(0); 
@@ -51,8 +54,12 @@ export default function App() {
   const [showCrafting, setShowCrafting] = useState(false);
   const [showBlueprints, setShowBlueprints] = useState(false);
   const [showBackpack, setShowBackpack] = useState(false);
+  const [showTextureManager, setShowTextureManager] = useState(false);
   const [activeBlueprint, setActiveBlueprint] = useState<Blueprint | null>(null);
   
+  // Texture Cache
+  const textureCacheRef = useRef<Partial<Record<TileType, HTMLImageElement>>>({});
+
   // Editor State
   const [editingTilePos, setEditingTilePos] = useState<{x: number, y: number} | null>(null);
 
@@ -78,13 +85,47 @@ export default function App() {
       if(saveGame(gameStateRef.current)) addLog(t('save_loaded'), "SYSTEM");
   };
 
+  // Load Custom Textures logic
+  const loadTextures = useCallback(() => {
+    const textures = gameStateRef.current.customTextures || {};
+    Object.entries(textures).forEach(([key, base64]) => {
+        if (!base64) {
+            delete textureCacheRef.current[key as TileType];
+            return;
+        }
+        if (!textureCacheRef.current[key as TileType] || textureCacheRef.current[key as TileType]!.src !== base64) {
+            const img = new Image();
+            img.onload = () => {
+                // Invalidate all chunks to force redraw with new texture
+                Object.values(gameStateRef.current.chunks).forEach((c: Chunk) => c._dirty = true);
+            };
+            img.onerror = () => {
+                console.error(`Failed to load texture for ${key}`);
+                delete textureCacheRef.current[key as TileType];
+                // Force redraw fallback
+                Object.values(gameStateRef.current.chunks).forEach((c: Chunk) => c._dirty = true);
+            };
+            img.src = base64 as string;
+            textureCacheRef.current[key as TileType] = img;
+        }
+    });
+  }, []);
+
   // Initialize
   useEffect(() => {
     const loadedState = loadGame();
     if (loadedState) {
         gameStateRef.current = loadedState;
-        // Migration: Ensure customItems exists
+        // Migration
         if (!gameStateRef.current.customItems) gameStateRef.current.customItems = [];
+        if (!gameStateRef.current.customTextures) gameStateRef.current.customTextures = {};
+        
+        // If no custom textures exist (first load of this feature), populate defaults
+        if (Object.keys(gameStateRef.current.customTextures).length === 0) {
+            gameStateRef.current.customTextures = generateDefaultTextures();
+        }
+
+        loadTextures();
         addLog(t('save_loaded'), "SYSTEM");
     } else {
         const initialChunks: Record<string, Chunk> = {};
@@ -94,11 +135,16 @@ export default function App() {
             }
         }
         gameStateRef.current.chunks = initialChunks;
+        
+        // Populate defaults
+        gameStateRef.current.customTextures = generateDefaultTextures();
+        loadTextures();
+
         addLog(t('welcome'));
         addLog(t('automine'));
     }
     setUiTrigger(1);
-  }, [addLog]);
+  }, [addLog, loadTextures]);
 
   const update = useCallback((dt: number) => {
     const state = gameStateRef.current;
@@ -201,10 +247,11 @@ export default function App() {
                     canvasRef.current, 
                     gameStateRef.current, 
                     camera.current,
+                    textureCacheRef.current,
                     activeBlueprint,
                     mouseWorldRef.current,
                     selectionStart,
-                    selectionEnd // Pass the fixed end point if available
+                    selectionEnd
                 );
             }
         }
@@ -218,7 +265,7 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'e' || e.key === 'E') setShowCrafting(p => !p);
         if (e.key === 'b' || e.key === 'B') setShowBlueprints(p => !p);
-        if (e.key === 'i' || e.key === 'I') setShowBackpack(p => !p); // I for Inventory/Backpack
+        if (e.key === 'i' || e.key === 'I') setShowBackpack(p => !p); 
         if (e.key === 'f' || e.key === 'F') {
             const state = gameStateRef.current;
             if (state.player.ridingEntityId) {
@@ -239,6 +286,7 @@ export default function App() {
             setShowCrafting(false);
             setShowBlueprints(false);
             setShowBackpack(false);
+            setShowTextureManager(false);
             setEditingTilePos(null);
             setActiveBlueprint(null);
             setIsCreatingBlueprint(false);
@@ -267,7 +315,7 @@ export default function App() {
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-      if (!canvasRef.current || showSaveDialog || editingTilePos) return;
+      if (!canvasRef.current || showSaveDialog || editingTilePos || showTextureManager) return;
       const rect = canvasRef.current.getBoundingClientRect();
       const worldX = Math.floor((e.clientX - rect.left + camera.current.x) / 48); 
       const worldY = Math.floor((e.clientY - rect.top + camera.current.y) / 48);
@@ -277,8 +325,8 @@ export default function App() {
       // Handle Start Selection
       if (isCreatingBlueprint) {
           selectionStartRef.current = { x: worldX, y: worldY };
-          setSelectionStart({ x: worldX, y: worldY }); // Visual update
-          setSelectionEnd(null); // Clear previous end point
+          setSelectionStart({ x: worldX, y: worldY }); 
+          setSelectionEnd(null); 
           return;
       }
 
@@ -289,7 +337,7 @@ export default function App() {
       if (activeBlueprint) {
           if (placeBlueprint(state, activeBlueprint, worldX, worldY)) {
               addLog(t('place_blueprint'), "SYSTEM");
-              setActiveBlueprint(null); // Clear after placing
+              setActiveBlueprint(null); 
               setUiTrigger(p => p + 1);
           } else {
               addLog(t('missing_mats'), "SYSTEM");
@@ -324,13 +372,8 @@ export default function App() {
                let ioConfig = 30; // Default config
 
                if (selected === TileType.AND_GATE || selected === TileType.OR_GATE || selected === TileType.NOT_GATE) {
-                   // If placing a custom config, use that
                    if (state.player.placingCustomConfig) {
                        variant = state.player.placingCustomConfig.variant; 
-                       // Rotate the custom config relative to player direction if needed?
-                       // For simplicity, let's say the custom config is saved in "Up" orientation (0).
-                       // We can adjust variant based on player direction.
-                       // Actually, simpler: Use player direction as the base variant, but apply the custom IO config.
                    } 
                    
                    if (state.player.direction === 'up') variant = 0;
@@ -338,7 +381,6 @@ export default function App() {
                    if (state.player.direction === 'down') variant = 2;
                    if (state.player.direction === 'left') variant = 3;
 
-                   // Override IO config if custom item
                    if (state.player.placingCustomConfig) {
                        ioConfig = state.player.placingCustomConfig.ioConfig;
                    }
@@ -381,7 +423,6 @@ export default function App() {
 
       // Handle End Selection
       if (isCreatingBlueprint && selectionStartRef.current) {
-          // Fix the end point so it doesn't move with mouse
           setSelectionEnd({ x: worldX, y: worldY });
           setShowSaveDialog(true);
       }
@@ -401,7 +442,7 @@ export default function App() {
               state.customBlueprints.push(newBp);
               saveGame(state); 
               addLog(t('blueprint_saved'), "SYSTEM");
-              setShowBlueprints(true); // Re-open menu to show success
+              setShowBlueprints(true); 
           }
       }
 
@@ -455,9 +496,6 @@ export default function App() {
       if (editingTilePos) {
           modifyTile(gameStateRef.current.chunks, editingTilePos.x, editingTilePos.y, t => ({...t, ioConfig}));
           
-          // Refresh circuits to apply new connections.
-          // IMPORTANT: Explicitly update neighbors because connectivity might have changed
-          // even if the gate active state itself does not change immediately.
           updateCircuit(gameStateRef.current, editingTilePos.x, editingTilePos.y);
           updateCircuit(gameStateRef.current, editingTilePos.x + 1, editingTilePos.y);
           updateCircuit(gameStateRef.current, editingTilePos.x - 1, editingTilePos.y);
@@ -483,8 +521,6 @@ export default function App() {
               gameStateRef.current.customItems.push(newItem);
               saveGame(gameStateRef.current);
               addLog(t('custom_item_saved'), "SYSTEM");
-              
-              // Also update the live tile
               handleEditorSave(ioConfig);
           }
       }
@@ -493,6 +529,31 @@ export default function App() {
   const getEditingTile = () => {
       if (!editingTilePos) return null;
       return getTile(gameStateRef.current.chunks, editingTilePos.x, editingTilePos.y);
+  };
+  
+  const handleUpdateTexture = (type: TileType, base64: string | null) => {
+      const state = gameStateRef.current;
+      if (!state.customTextures) state.customTextures = {};
+      
+      if (base64) {
+          state.customTextures[type] = base64;
+      } else {
+          delete state.customTextures[type];
+      }
+      saveGame(state);
+      loadTextures(); // Reload into image elements
+      // Force full redraw
+      Object.values(state.chunks).forEach((c: Chunk) => c._dirty = true);
+      setUiTrigger(p => p+1);
+  };
+
+  const handleRestoreDefaults = () => {
+      const defaults = generateDefaultTextures();
+      gameStateRef.current.customTextures = defaults;
+      saveGame(gameStateRef.current);
+      loadTextures();
+      Object.values(gameStateRef.current.chunks).forEach((c: Chunk) => c._dirty = true);
+      setUiTrigger(p => p+1);
   };
 
   return (
@@ -506,7 +567,7 @@ export default function App() {
         onMouseMove={handleMouseMove}
         className="cursor-crosshair block"
       />
-      {/* Selection Mode Indicator */}
+      
       {isCreatingBlueprint && !showSaveDialog && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-cyan-900/80 text-white px-4 py-2 rounded-full shadow-xl border border-cyan-500 animate-pulse pointer-events-none z-50">
               {selectionStart ? t('select_end') : t('select_start')}
@@ -530,13 +591,23 @@ export default function App() {
             t={t}
           />
       )}
+      
+      {showTextureManager && (
+          <TextureManager 
+              customTextures={gameStateRef.current.customTextures}
+              onUpdateTexture={handleUpdateTexture}
+              onRestoreDefaults={handleRestoreDefaults}
+              onClose={() => setShowTextureManager(false)}
+              t={t}
+          />
+      )}
 
       <InventoryBar 
          inventory={gameStateRef.current.inventory}
          selectedItem={gameStateRef.current.player.selectedItem}
          onSelect={i => {
              gameStateRef.current.player.selectedItem = i;
-             gameStateRef.current.player.placingCustomConfig = null; // Reset custom config when selecting generic item
+             gameStateRef.current.player.placingCustomConfig = null; 
              setActiveBlueprint(null); 
              setIsCreatingBlueprint(false);
              setSelectionStart(null);
@@ -550,16 +621,19 @@ export default function App() {
              setShowCrafting(!showCrafting);
              setShowBlueprints(false);
              setShowBackpack(false);
+             setShowTextureManager(false);
          }}
          onToggleBlueprints={() => {
              setShowBlueprints(!showBlueprints);
              setShowCrafting(false);
              setShowBackpack(false);
+             setShowTextureManager(false);
          }}
          onToggleBackpack={() => {
              setShowBackpack(!showBackpack);
              setShowCrafting(false);
              setShowBlueprints(false);
+             setShowTextureManager(false);
          }}
          strings={{ craft: t('craft_btn'), empty: t('empty'), blueprints: t('blueprints_btn'), backpack: t('backpack_btn') }}
       />
@@ -613,28 +687,56 @@ export default function App() {
       )}
 
       <OracleLog logs={logs} />
-      <div className="fixed top-4 right-4 flex flex-col gap-2 pointer-events-none">
-         <div className="flex gap-2 pointer-events-auto">
-            <button onClick={handleSave} className="bg-slate-700 hover:bg-slate-600 text-white p-2 rounded shadow">
-                <Save size={20} />
+      
+      {/* Top Right Controls Group - Polished & High Vis */}
+      <div className="fixed top-4 right-4 flex flex-col items-end gap-3 z-[100] pointer-events-none">
+         <div className="flex gap-3 pointer-events-auto p-2 bg-slate-900/80 rounded-2xl border border-slate-600 shadow-xl backdrop-blur-md">
+            {/* Texture / Palette Button */}
+            <button 
+                onClick={() => setShowTextureManager(true)}
+                className="group relative w-10 h-10 flex items-center justify-center rounded-lg bg-pink-600 border-b-4 border-pink-800 active:border-b-0 active:translate-y-1 transition-all shadow-md hover:bg-pink-500"
+                title={t('texture_manager')}
+            >
+                <Palette size={20} className="text-white drop-shadow-md group-hover:scale-110 transition-transform"/>
             </button>
+            
+            {/* Save Button */}
+            <button 
+                onClick={handleSave} 
+                className="group relative w-10 h-10 flex items-center justify-center rounded-lg bg-blue-600 border-b-4 border-blue-800 active:border-b-0 active:translate-y-1 transition-all shadow-md hover:bg-blue-500"
+                title={t('save')}
+            >
+                <Save size={20} className="text-white drop-shadow-md group-hover:scale-110 transition-transform"/>
+            </button>
+            
+            {/* Ask Oracle Button */}
             <button 
                 onClick={handleAskOracle}
                 disabled={isAiLoading}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold shadow-lg transition-all ${isAiLoading ? 'bg-slate-700 text-slate-400' : 'bg-purple-600 hover:bg-purple-500 text-white'}`}
+                className={`flex items-center gap-2 px-3 h-10 rounded-lg font-bold shadow-md transition-all border-b-4 active:border-b-0 active:translate-y-1 ${
+                    isAiLoading 
+                    ? 'bg-slate-700 border-slate-800 text-slate-400 cursor-wait' 
+                    : 'bg-violet-600 border-violet-800 hover:bg-violet-500 text-white'
+                }`}
             >
-                <BrainCircuit className="w-5 h-5" />
-                {t('ask_oracle')}
+                <BrainCircuit className={`w-5 h-5 ${isAiLoading ? 'animate-pulse' : 'drop-shadow-md'}`} />
+                <span className="text-xs">{t('ask_oracle')}</span>
             </button>
          </div>
-         <div className="bg-slate-800/80 p-3 rounded-lg text-slate-300 text-xs border border-slate-600 backdrop-blur-sm">
-            <p className="font-bold mb-1 flex items-center gap-1"><Info size={12}/> {t('controls')}</p>
-            <p>{t('move')}</p>
-            <p>{t('interact')}</p>
-            <p>{t('config_gate')}</p>
-            <p>{t('automine')}</p>
-            <p>{t('mount')}</p>
-            <p>{t('craft')}</p>
+
+         {/* Info Panel - Compact & High Vis */}
+         <div className="bg-slate-900/90 backdrop-blur-md p-3 rounded-xl text-slate-300 text-[10px] border border-slate-600 shadow-xl max-w-[180px]">
+            <p className="font-bold mb-1.5 flex items-center gap-1.5 text-slate-100 text-xs border-b border-white/10 pb-1">
+                <Info size={12}/> {t('controls')}
+            </p>
+            <div className="space-y-1 opacity-90 leading-tight">
+                <p>{t('move')}</p>
+                <p>{t('interact')}</p>
+                <p>{t('config_gate')}</p>
+                <p>{t('automine')}</p>
+                <p>{t('mount')}</p>
+                <p>{t('craft')}</p>
+            </div>
         </div>
       </div>
     </div>
