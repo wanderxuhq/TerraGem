@@ -3,9 +3,18 @@ import { GoogleGenAI } from "@google/genai";
 import { Tile, TileType } from '../types';
 
 const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
+  // Safe access for process.env in environments where process might not be defined
+  let apiKey = '';
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      apiKey = process.env.API_KEY || '';
+    }
+  } catch (e) {
+    console.warn("Unable to access process.env");
+  }
+
   if (!apiKey) {
-    console.warn("No API_KEY found in process.env");
+    console.warn("No API_KEY found");
     return null;
   }
   return new GoogleGenAI({ apiKey });
