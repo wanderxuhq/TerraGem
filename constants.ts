@@ -1,4 +1,5 @@
 
+
 import { Blueprint, Recipe, TileType } from './types';
 
 export const TILE_SIZE = 48; // Increased for better detail
@@ -48,13 +49,14 @@ export const STRINGS: Record<string, { en: string; zh: string }> = {
   'texture_manager': { en: 'Material Editor', zh: '材质编辑器' },
   'prompt_style': { en: 'Style Prompt', zh: '风格提示词' },
   'generate': { en: 'Generate Texture', zh: '生成材质' },
-  'generating': { en: 'Generating...', zh: '生成中...' },
+  'generating': { en: '生成中...', zh: '生成中...' },
   'reset': { en: 'Reset', zh: '重置' },
   'defaults': { en: 'Restore Defaults', zh: '恢复默认' },
   'download_assets': { en: 'Download Default Assets', zh: '下载默认材质包' },
 
   // Editor Strings
   'configure_gate': { en: 'Configure Gate', zh: '配置逻辑门' },
+  'configure_rail': { en: 'Configure Rail', zh: '配置铁轨' },
   'save_to_backpack': { en: 'Save to Backpack', zh: '保存到背包' },
   'inputs': { en: 'Inputs', zh: '输入' },
   'outputs': { en: 'Outputs', zh: '输出' },
@@ -64,6 +66,12 @@ export const STRINGS: Record<string, { en: string; zh: string }> = {
   'error_min_inputs': { en: 'Gates need at least 2 inputs', zh: '逻辑门至少需要2个输入' },
   'custom_item_saved': { en: 'Item Saved to Backpack!', zh: '物品已保存到背包!' },
   'backpack_title': { en: 'Saved Items', zh: '已保存物品' },
+
+  // Rail Configuration
+  'rail_auto': { en: 'Auto-Connect', zh: '自动连接' },
+  'rail_manual': { en: 'Manual Configuration', zh: '手动配置' },
+  'rail_connections': { en: 'Connections', zh: '连接方向' },
+  'item_name': { en: 'Item Name', zh: '物品名称' },
 
   // Categories
   'cat_TOOLS': { en: 'Tools', zh: '工具' },
@@ -161,6 +169,19 @@ export const PLACEABLE_TILES = new Set([
   TileType.AND_GATE,
   TileType.OR_GATE,
   TileType.NOT_GATE
+]);
+
+export const OVERLAY_TILES = new Set([
+  TileType.RAIL,
+  TileType.WIRE,
+  TileType.LEVER,
+  TileType.LAMP,
+  TileType.LAMP_ON,
+  TileType.AND_GATE,
+  TileType.OR_GATE,
+  TileType.NOT_GATE,
+  TileType.FLOWER,
+  TileType.SAPLING
 ]);
 
 export const TOOLS = new Set([

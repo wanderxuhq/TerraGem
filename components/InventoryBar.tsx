@@ -23,7 +23,7 @@ const getIconForType = (type: TileType) => {
         case TileType.AXE: return <Axe size={24} className="text-red-500 drop-shadow-md" />;
         case TileType.PICKAXE: return <Pickaxe size={24} className="text-blue-500 drop-shadow-md" />;
         case TileType.FLOOR: return <div className="w-7 h-7 bg-[#d6d3d1] border border-stone-500 shadow-sm" />;
-        case TileType.RAIL: return <div className="w-6 h-8 border-x-4 border-slate-500 flex flex-col justify-between py-1 bg-slate-900/50"><div className="h-1 bg-amber-800 w-full"></div><div className="h-1 bg-amber-800 w-full"></div></div>;
+        case TileType.RAIL: return <div className="w-6 h-8 border-x-4 border-slate-500 flex flex-col justify-between py-1 bg-transparent"><div className="h-1 bg-amber-800 w-full"></div><div className="h-1 bg-amber-800 w-full"></div></div>;
         case TileType.WIRE: return <Zap size={24} className="text-red-500 drop-shadow-md" />;
         case TileType.LEVER: return <ToggleLeft size={24} className="text-amber-600 drop-shadow-md" />;
         case TileType.LAMP: return <Lightbulb size={24} className="text-yellow-300 drop-shadow-md" />;

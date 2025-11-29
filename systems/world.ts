@@ -1,7 +1,16 @@
 
-import { INTERACTABLE_TILES, LOOT_TABLE, DIRS } from '../constants';
+
+import { INTERACTABLE_TILES, LOOT_TABLE, DIRS, STRINGS } from '../constants';
 import { CHUNK_SIZE, TileType, GameState, Tile } from '../types';
 import { getTile, modifyTile, isGate, isConductive, isPowerSourceFor } from '../utils/gameUtils';
+
+// Helper to get lang for strings inside systems (where hooks aren't available)
+const getLang = () => {
+  if (typeof navigator === 'undefined') return 'en';
+  const navLang = navigator.language.toLowerCase();
+  return navLang.startsWith('zh') ? 'zh' : 'en';
+};
+const t = (key: string) => STRINGS[key]?.[getLang()] || key;
 
 export const attemptMine = (state: GameState, x: number, y: number, onLoot?: () => void) => {
     const tile = getTile(state.chunks, x, y);
@@ -9,13 +18,22 @@ export const attemptMine = (state: GameState, x: number, y: number, onLoot?: () 
 
     const loot = LOOT_TABLE[tile.type];
     if (loot) {
-        const nextType = tile.type === TileType.WALL ? TileType.FLOOR : TileType.GRASS;
+        // If the tile has a background type (it was an overlay), revert to it.
+        // Otherwise, revert to default ground (Floor for Walls, Grass for others usually, but simplify to Grass/Floor toggle)
+        let nextType = tile.backgroundType;
+        
+        if (!nextType) {
+             nextType = tile.type === TileType.WALL ? TileType.FLOOR : TileType.GRASS;
+        }
+
         modifyTile(state.chunks, x, y, (t) => ({ 
             ...t, 
-            type: nextType, 
+            type: nextType!, 
             active: false,
             // If turning into a floor from a placed wall, keep it placed. Otherwise revert to natural state.
-            placed: nextType === TileType.FLOOR ? t.placed : false 
+            placed: nextType === TileType.FLOOR ? t.placed : false,
+            backgroundType: undefined, // Clear background since we exposed it
+            variant: t.variant // Keep variant? For grass noise it helps.
         }));
         
         const inv = state.inventory;
@@ -257,6 +275,9 @@ export const handleInteraction = (state: GameState, worldX: number, worldY: numb
          onUpdate();
          return;
     }
+
+    // Note: Rail configuration via Shift+Click is now handled in App.tsx via UI modal.
+    // We removed the legacy cycling logic here.
 
     attemptMine(state, worldX, worldY);
     onUpdate();

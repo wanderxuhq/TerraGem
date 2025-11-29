@@ -1,8 +1,9 @@
 
+
 import React, { useEffect, useRef, useState, useCallback, Component, ErrorInfo } from 'react';
 import { generateChunk } from './utils/worldGen';
 import { 
-    COLLISION_TILES, PLACEABLE_TILES, STRINGS 
+    COLLISION_TILES, PLACEABLE_TILES, OVERLAY_TILES, STRINGS 
 } from './constants';
 import { GameState, TileType, LogMessage, Tile, Recipe, Chunk, CHUNK_SIZE, Entity, Camera, Blueprint, CustomItem } from './types';
 import { InventoryBar } from './components/InventoryBar';
@@ -12,6 +13,7 @@ import { BlueprintMenu } from './components/BlueprintMenu';
 import { BackpackMenu } from './components/BackpackMenu';
 import { BlueprintSaveDialog } from './components/BlueprintSaveDialog';
 import { VariantEditor } from './components/VariantEditor';
+import { RailEditor } from './components/RailEditor';
 import { TextureManager } from './components/TextureManager';
 import { generateLore } from './services/geminiService';
 import { generateDefaultTextures } from './utils/textureGen';
@@ -104,6 +106,7 @@ function Game() {
 
   // Editor State
   const [editingTilePos, setEditingTilePos] = useState<{x: number, y: number} | null>(null);
+  const [editingRailPos, setEditingRailPos] = useState<{x: number, y: number} | null>(null);
 
   // Blueprint Creation State
   const [isCreatingBlueprint, setIsCreatingBlueprint] = useState(false);
@@ -173,7 +176,7 @@ function Game() {
         const initialChunks: Record<string, Chunk> = {};
         for(let y=-1; y<=1; y++) {
             for(let x=-1; x<=1; x++) {
-                initialChunks[`${x},${y}`] = generateChunk(x, y, SEED);
+                initialChunks[`${x},${y}`] = generateChunk(x, y, SEED); // Pass seed if needed or rely on global
             }
         }
         gameStateRef.current.chunks = initialChunks;
@@ -330,6 +333,7 @@ function Game() {
             setShowBackpack(false);
             setShowTextureManager(false);
             setEditingTilePos(null);
+            setEditingRailPos(null);
             setActiveBlueprint(null);
             setIsCreatingBlueprint(false);
             setSelectionStart(null);
@@ -351,16 +355,16 @@ function Game() {
   const handleMouseMove = (e: React.MouseEvent) => {
       if (!canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
-      const worldX = Math.floor((e.clientX - rect.left + camera.current.x) / 48);
-      const worldY = Math.floor((e.clientY - rect.top + camera.current.y) / 48);
+      const worldX = Math.floor((e.clientX - rect.left - camera.current.x) / 48);
+      const worldY = Math.floor((e.clientY - rect.top - camera.current.y) / 48);
       mouseWorldRef.current = { x: worldX, y: worldY };
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-      if (!canvasRef.current || showSaveDialog || editingTilePos || showTextureManager) return;
+      if (!canvasRef.current || showSaveDialog || editingTilePos || editingRailPos || showTextureManager) return;
       const rect = canvasRef.current.getBoundingClientRect();
-      const worldX = Math.floor((e.clientX - rect.left + camera.current.x) / 48); 
-      const worldY = Math.floor((e.clientY - rect.top + camera.current.y) / 48);
+      const worldX = Math.floor((e.clientX - rect.left - camera.current.x) / 48); 
+      const worldY = Math.floor((e.clientY - rect.top - camera.current.y) / 48);
       
       const state = gameStateRef.current;
 
@@ -413,19 +417,46 @@ function Game() {
                let variant = 0;
                let ioConfig = 30; // Default config
 
+               // Custom Logic Item Placement
                if (selected === TileType.AND_GATE || selected === TileType.OR_GATE || selected === TileType.NOT_GATE) {
                    if (state.player.placingCustomConfig) {
                        variant = state.player.placingCustomConfig.variant; 
-                   } 
-                   
-                   if (state.player.direction === 'up') variant = 0;
-                   if (state.player.direction === 'right') variant = 1;
-                   if (state.player.direction === 'down') variant = 2;
-                   if (state.player.direction === 'left') variant = 3;
-
-                   if (state.player.placingCustomConfig) {
                        ioConfig = state.player.placingCustomConfig.ioConfig;
+                   } else {
+                        // Auto Rotate
+                        if (state.player.direction === 'up') variant = 0;
+                        if (state.player.direction === 'right') variant = 1;
+                        if (state.player.direction === 'down') variant = 2;
+                        if (state.player.direction === 'left') variant = 3;
                    }
+               }
+
+               // Custom Rail Item Placement
+               if (selected === TileType.RAIL) {
+                    if (state.player.placingCustomConfig) {
+                        variant = state.player.placingCustomConfig.variant; // This holds the mask (e.g. 15 for cross)
+                    }
+               }
+               
+               // Layering Logic: If new item is Overlay, preserve the ground underneath
+               let backgroundType = tile.backgroundType;
+               if (OVERLAY_TILES.has(selected)) {
+                   // If current tile is already an overlay...
+                   if (OVERLAY_TILES.has(tile.type)) {
+                       // Special case: If it's a FLOWER, allow it to become background
+                       if (tile.type === TileType.FLOWER) {
+                           backgroundType = TileType.FLOWER;
+                       } else {
+                           // For others (e.g. Rail on Rail, Wire on Wire), keep existing background
+                           backgroundType = tile.backgroundType;
+                       }
+                   } else {
+                       // Current is ground, make it background
+                       backgroundType = tile.type;
+                   }
+               } else {
+                   // Placing a full block (e.g. Floor/Wall) clears background
+                   backgroundType = undefined;
                }
 
                modifyTile(state.chunks, worldX, worldY, t => ({ 
@@ -434,7 +465,8 @@ function Game() {
                    active: false, 
                    variant,
                    placed: true,
-                   ioConfig
+                   ioConfig,
+                   backgroundType
                 }));
                
                // Update circuit if we placed a component
@@ -449,9 +481,15 @@ function Game() {
       }
       
       // Handle Shift+Click for Editor
-      if (e.shiftKey && tile && (tile.type === TileType.AND_GATE || tile.type === TileType.OR_GATE || tile.type === TileType.NOT_GATE)) {
-          setEditingTilePos({x: worldX, y: worldY});
-          return;
+      if (e.shiftKey && tile) {
+          if (tile.type === TileType.AND_GATE || tile.type === TileType.OR_GATE || tile.type === TileType.NOT_GATE) {
+              setEditingTilePos({x: worldX, y: worldY});
+              return;
+          }
+          if (tile.type === TileType.RAIL) {
+              setEditingRailPos({x: worldX, y: worldY});
+              return;
+          }
       }
 
       handleInteraction(state, worldX, worldY, () => setUiTrigger(p => p+1), e.shiftKey);
@@ -460,8 +498,8 @@ function Game() {
   const handleMouseUp = (e: React.MouseEvent) => {
       if (!canvasRef.current || showSaveDialog) return;
       const rect = canvasRef.current.getBoundingClientRect();
-      const worldX = Math.floor((e.clientX - rect.left + camera.current.x) / 48); 
-      const worldY = Math.floor((e.clientY - rect.top + camera.current.y) / 48);
+      const worldX = Math.floor((e.clientX - rect.left - camera.current.x) / 48); 
+      const worldY = Math.floor((e.clientY - rect.top - camera.current.y) / 48);
 
       // Handle End Selection
       if (isCreatingBlueprint && selectionStartRef.current) {
@@ -549,6 +587,14 @@ function Game() {
       }
   };
 
+  const handleRailSave = (variant: number) => {
+      if (editingRailPos) {
+          modifyTile(gameStateRef.current.chunks, editingRailPos.x, editingRailPos.y, t => ({...t, variant}));
+          setEditingRailPos(null);
+          setUiTrigger(p => p+1);
+      }
+  };
+
   const handleEditorSaveToBackpack = (ioConfig: number, name: string) => {
       if (editingTilePos) {
           const tile = getTile(gameStateRef.current.chunks, editingTilePos.x, editingTilePos.y);
@@ -568,9 +614,33 @@ function Game() {
       }
   };
 
+  const handleRailSaveToBackpack = (variant: number, name: string) => {
+      if (editingRailPos) {
+          const tile = getTile(gameStateRef.current.chunks, editingRailPos.x, editingRailPos.y);
+          if (tile) {
+              const newItem: CustomItem = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  name: name,
+                  baseType: tile.type,
+                  ioConfig: 0, // Not used for rails
+                  variant: variant // This stores the rail mask
+              };
+              gameStateRef.current.customItems.push(newItem);
+              saveGame(gameStateRef.current);
+              addLog(t('custom_item_saved'), "SYSTEM");
+              handleRailSave(variant);
+          }
+      }
+  };
+
   const getEditingTile = () => {
       if (!editingTilePos) return null;
       return getTile(gameStateRef.current.chunks, editingTilePos.x, editingTilePos.y);
+  };
+
+  const getEditingRailTile = () => {
+      if (!editingRailPos) return null;
+      return getTile(gameStateRef.current.chunks, editingRailPos.x, editingRailPos.y);
   };
   
   const handleUpdateTexture = (type: TileType, base64: string | null) => {
@@ -633,6 +703,16 @@ function Game() {
             t={t}
           />
       )}
+
+      {editingRailPos && getEditingRailTile() && (
+          <RailEditor
+            tile={getEditingRailTile()!}
+            onSave={handleRailSave}
+            onSaveToInventory={handleRailSaveToBackpack}
+            onClose={() => setEditingRailPos(null)}
+            t={t}
+          />
+      )}
       
       {showTextureManager && (
           <TextureManager 
@@ -657,6 +737,7 @@ function Game() {
              setShowSaveDialog(false);
              selectionStartRef.current = null;
              setEditingTilePos(null);
+             setEditingRailPos(null);
              setUiTrigger(p => p+1);
          }}
          onToggleCrafting={() => {

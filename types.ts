@@ -35,6 +35,9 @@ export interface Tile {
   active?: boolean; // For logic components
   placed?: boolean; // True if placed by player/system, false/undefined if natural
   
+  // Layering Support
+  backgroundType?: TileType; // If set, this type is rendered underneath the main type
+  
   // Bitmask Configuration:
   // Bits 0-3: Input Mask (0:Front, 1:Right, 2:Back, 3:Left relative to facing)
   // Bits 4-7: Output Mask (0:Front, 1:Right, 2:Back, 3:Left relative to facing)

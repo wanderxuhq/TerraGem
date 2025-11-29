@@ -1,5 +1,4 @@
 
-
 import { MAX_MINECART_SPEED } from '../constants';
 import { Entity, GameState, TileType } from '../types';
 import { getTile, isRail } from '../utils/gameUtils';
@@ -55,10 +54,23 @@ export const updateMinecart = (state: GameState, cart: Entity, dt: number, input
     if (Math.abs(cart.vy) < 0.005) cart.vy = 0;
 
     if (isOnRail) {
-        const n = isRail(getTile(state.chunks, currentTileX, currentTileY-1));
-        const s = isRail(getTile(state.chunks, currentTileX, currentTileY+1));
-        const w = isRail(getTile(state.chunks, currentTileX-1, currentTileY));
-        const e = isRail(getTile(state.chunks, currentTileX+1, currentTileY));
+        // Variant Logic: 0 = Auto. >0 = Bitmask (N=1, E=2, S=4, W=8)
+        const variant = tile!.variant || 0;
+        
+        let n = isRail(getTile(state.chunks, currentTileX, currentTileY-1));
+        let s = isRail(getTile(state.chunks, currentTileX, currentTileY+1));
+        let w = isRail(getTile(state.chunks, currentTileX-1, currentTileY));
+        let e = isRail(getTile(state.chunks, currentTileX+1, currentTileY));
+
+        // Mask neighbors based on forced variants (Bitmask)
+        // If variant is 0 (Auto), we leave n,s,w,e as derived from neighbors.
+        // If variant > 0, we AND the existence of neighbors with the allowed mask.
+        if (variant > 0) {
+             n = n && !!(variant & 1);
+             e = e && !!(variant & 2);
+             s = s && !!(variant & 4);
+             w = w && !!(variant & 8);
+        }
 
         const centerX = currentTileX + 0.5;
         const centerY = currentTileY + 0.5;
@@ -69,7 +81,9 @@ export const updateMinecart = (state: GameState, cart: Entity, dt: number, input
         
         let snapped = false;
 
+        // A rail is strictly vertical if N or S exist, AND W and E do NOT exist.
         const isVertical = (n || s) && !w && !e;
+        // A rail is strictly horizontal if W or E exist, AND N and S do NOT exist.
         const isHorizontal = (w || e) && !n && !s;
         
         if (isVertical) {
@@ -83,7 +97,7 @@ export const updateMinecart = (state: GameState, cart: Entity, dt: number, input
              cart.y = centerY;
              cart.x = nextCartX;
         } else {
-            // Corner logic
+            // Corner / Intersection / T-Junction logic
             if (passedCenter || distToCenter < 0.1) {
                 const executeTurn = (newDirX: number, newDirY: number) => {
                     const speed = Math.sqrt(cart.vx!*cart.vx! + cart.vy!*cart.vy!);
@@ -102,6 +116,12 @@ export const updateMinecart = (state: GameState, cart: Entity, dt: number, input
                 const movingW = cart.vx < -0.01;
                 const movingE = cart.vx > 0.01;
 
+                // T-Junction Logic:
+                // If moving North and North path exists (n), continue.
+                // If North blocked (!n), try to turn W or E.
+                // If both W and E available (T-shape), pick random (or keep momentum if coming from side).
+                // Actually, simplified logic: if moving direction is blocked, turn.
+                
                 if (movingN && !n) {
                     if (w && !e) executeTurn(-1, 0); 
                     else if (e && !w) executeTurn(1, 0);
